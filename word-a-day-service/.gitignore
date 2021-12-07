@@ -1,0 +1,5 @@
+venv
+.vscode
+__pycache__
+enwiktionary-20211201-pages-meta-current.xml
+datasets/
