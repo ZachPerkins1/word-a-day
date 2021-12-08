@@ -19,7 +19,7 @@ requests.mount('https://', HTTPAdapter(max_retries=retries))
 
 
 wiktionary_file = 'enwiktionary-20211201-pages-meta-current.xml'
-read_block_size_bytes = 500
+read_block_size_bytes = 1000000
 get_frequency_batch_size = 20
 db_insert_batch_size = 50
 
@@ -59,6 +59,7 @@ def generate(regen=False):
     con = sqlite3.connect(db_file)
     cursor = con.cursor()
     create_tables(cursor)
+    words_processed = 0
 
     for block in iterate_in_blocks(generate_words(), db_insert_batch_size):
         cursor.executemany(
@@ -68,6 +69,8 @@ def generate(regen=False):
             )
         )
         con.commit()
+        words_processed += db_insert_batch_size
+        print(f'words processed: {words_processed}')
     
 
 def iterate_in_blocks(iterable, block_size):
@@ -112,8 +115,8 @@ def generate_words():
 
     while len(dictWords) > 0:
         # get rid of newlines
-        frequencies = get_word_frequencies(map(lambda dictWord: dictWord.text, dictWords))
-        print(frequencies)
+        frequencies = get_word_frequencies(list(map(lambda dictWord: dictWord.text, dictWords)))
+        # print(frequencies)
 
         for word_obj in map(lambda dictWord: Word(dictWord, frequencies[dictWord.text]), dictWords):
             if not should_filter_word(word_obj):
@@ -150,8 +153,6 @@ def read_wiktionary_page_block():
                     if (end_idx >= 0):
                         end_idx_including_tag = end_idx + 7
                         yield curr_text[start_idx:end_idx_including_tag]
-                        read_size += read_block_size_bytes
-                        print(f'{read_size}/{file_size}')
                         curr_text = curr_text[end_idx_including_tag:]
                         in_page = False
                     else:
@@ -163,7 +164,9 @@ def read_wiktionary_page_block():
                     else:
                         break
                 
-            new_block = f.read(block_size)
+            read_size += read_block_size_bytes
+            print(f'{(read_size/file_size)*100}%')
+            new_block = f.read(read_block_size_bytes)
 
 
 def parse_wiktionary_page_block(block: str):
@@ -251,7 +254,6 @@ def get_word_frequencies(words):
         'corpus': 26,
         'smoothing': 3
     })
-    print(resp.request.path_url)
 
     output_map = {}
     if (resp.status_code != 200):
